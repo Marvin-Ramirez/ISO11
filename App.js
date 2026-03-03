@@ -1,20 +1,65 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { PaperProvider, MD3LightTheme } from 'react-native-paper';
+import { AppProvider } from './src/context/AppContext';
+import HomeScreen from './src/screens/HomeScreen';
+import EditPensumScreen from './src/screens/EditPensumScreen';
+import PlanningScreen from './src/screens/PlanningScreen';
+import SavedPlansScreen from './src/screens/SavedPlansScreen';
+import CalculatorScreen from './src/screens/CalculatorScreen';
+import FinanceScreen from './src/screens/FinanceScreen';
+
+const Stack = createNativeStackNavigator();
+const theme = {
+  ...MD3LightTheme,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: '#2196F3',
+    secondary: '#03A9F4',
+    tertiary: '#4CAF50',
+  },
+};
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <AppProvider>
+      <PaperProvider theme={theme}>
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName="Home">
+            <Stack.Screen 
+              name="Home" 
+              component={HomeScreen}
+              options={{ title: 'Mi Progreso ISO11' }}
+            />
+            <Stack.Screen 
+              name="EditPensum" 
+              component={EditPensumScreen}
+              options={{ title: 'Editar Pensum' }}
+            />
+            <Stack.Screen 
+              name="Planning" 
+              component={PlanningScreen}
+              options={{ title: 'Planificación' }}
+            />
+            <Stack.Screen 
+              name="SavedPlans" 
+              component={SavedPlansScreen}
+              options={{ title: 'Planes Guardados' }}
+            />
+            <Stack.Screen 
+              name="Calculator" 
+              component={CalculatorScreen}
+              options={{ title: 'Calculadora' }}
+            />
+            <Stack.Screen 
+              name="Finance" 
+              component={FinanceScreen}
+              options={{ title: 'Control de Pagos' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </PaperProvider>
+    </AppProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
