@@ -42,3 +42,11 @@
 ### Opción 1: Descargar el APK (solo Android)
 
 Puedes descargar la última versión de la aplicación desde la sección [Releases](https://github.com/marvin-ramirez/ISO11/releases) de este repositorio. Busca el archivo `.apk` e instálalo en tu dispositivo Android (recuerda habilitar la instalación desde orígenes desconocidos).
+
+### Opción 2: Ejecutar en entorno de desarrollo
+
+Si deseas explorar el código o ejecutar la app en tu propio entorno:
+
+1. Clona este repositorio:
+   ```bash
+   git clone https://github.com/marvin-ramirez/ISO11.git
