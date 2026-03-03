@@ -18,7 +18,7 @@
 
 ---
 
-## 🛠 Tecnologías utilizadas
+## Tecnologías utilizadas
 
 - **React Native** (con Expo) para el desarrollo multiplataforma (iOS y Android).
 - **AsyncStorage** para el almacenamiento local persistente de los datos del pensum.
