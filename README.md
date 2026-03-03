@@ -50,3 +50,17 @@ Si deseas explorar el código o ejecutar la app en tu propio entorno:
 1. Clona este repositorio:
    ```bash
    git clone https://github.com/marvin-ramirez/ISO11.git
+
+2. Accede a la carpeta del proyecto:
+   ```bash
+   cd ISO11
+
+3. Instala las dependencias:
+   ```bash
+   npm install
+
+4. Inicia el proyecto con Expo:
+   ```bash
+   expo start
+
+5. Escanea el código QR con la aplicación Expo Go en tu dispositivo iOS o Android.
