@@ -29,7 +29,7 @@
 
 ---
 
-## 📸 Capturas de pantalla
+## Capturas de pantalla
 
 | Progreso General  | Lista de materias  | Herramientas |
 |-------------------|--------------------|-------------------|
