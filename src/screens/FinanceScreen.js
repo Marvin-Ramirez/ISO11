@@ -13,7 +13,6 @@ import {
   TextInput,
   Divider,
   List,
-  Chip,
   MD3Colors,
   Modal,
   Portal,
@@ -34,7 +33,6 @@ const FinanceScreen = ({ navigation }) => {
 
   const PAYMENTS_STORAGE_KEY = '@pensum_payments';
 
-  // Cargar pagos al iniciar
   useEffect(() => {
     loadPayments();
   }, []);
@@ -62,17 +60,16 @@ const FinanceScreen = ({ navigation }) => {
     }
   };
 
-  // Calcular totales
   const calculateTotals = () => {
-    const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
-    
-    // Agrupar por cuatrimestre
-    const bySemester = payments.reduce((acc, payment) => {
-      const semester = payment.semester;
-      if (!acc[semester]) {
-        acc[semester] = 0;
-      }
-      acc[semester] += parseFloat(payment.amount || 0);
+    const totalPaid = payments.reduce(
+      (sum, p) => sum + parseFloat(p.amount || 0),
+      0
+    );
+
+    const bySemester = payments.reduce((acc, p) => {
+      const s = p.semester;
+      if (!acc[s]) acc[s] = 0;
+      acc[s] += parseFloat(p.amount || 0);
       return acc;
     }, {});
 
@@ -85,7 +82,6 @@ const FinanceScreen = ({ navigation }) => {
 
   const { totalPaid, bySemester, semesterCount } = calculateTotals();
 
-  // Abrir modal para agregar/editar pago
   const openPaymentModal = (payment = null) => {
     if (payment) {
       setEditingPayment(payment);
@@ -100,14 +96,13 @@ const FinanceScreen = ({ navigation }) => {
       setFormData({
         semester: '',
         amount: '',
-        date: new Date().toISOString().split('T')[0], // Fecha actual
+        date: new Date().toISOString().split('T')[0],
         description: '',
       });
     }
     setModalVisible(true);
   };
 
-  // Guardar pago
   const handleSavePayment = async () => {
     if (!formData.semester.trim() || !formData.amount.trim() || !formData.date.trim()) {
       Alert.alert('Error', 'Por favor completa los campos obligatorios (Cuatrimestre, Monto y Fecha).');
@@ -128,8 +123,8 @@ const FinanceScreen = ({ navigation }) => {
 
     const paymentData = {
       id: editingPayment ? editingPayment.id : Date.now().toString(),
-      semester: semester,
-      amount: amount,
+      semester,
+      amount,
       date: formData.date,
       description: formData.description.trim(),
       createdAt: editingPayment ? editingPayment.createdAt : new Date().toISOString(),
@@ -143,7 +138,6 @@ const FinanceScreen = ({ navigation }) => {
       newPayments = [...payments, paymentData];
     }
 
-    // Ordenar por cuatrimestre y fecha
     newPayments.sort((a, b) => {
       if (a.semester !== b.semester) return a.semester - b.semester;
       return new Date(b.date) - new Date(a.date);
@@ -159,7 +153,6 @@ const FinanceScreen = ({ navigation }) => {
     }
   };
 
-  // Eliminar pago
   const handleDeletePayment = (payment) => {
     Alert.alert(
       'Eliminar Pago',
@@ -181,10 +174,8 @@ const FinanceScreen = ({ navigation }) => {
     );
   };
 
-  // Limpiar todos los pagos
   const handleClearAll = () => {
     if (payments.length === 0) return;
-
     Alert.alert(
       'Eliminar Todos los Pagos',
       `¿Estás seguro de que quieres eliminar todos los pagos (${payments.length} registros)?`,
@@ -204,23 +195,20 @@ const FinanceScreen = ({ navigation }) => {
     );
   };
 
-  // Formatear fecha
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
     });
   };
 
-  // Formatear moneda
-  const formatCurrency = (amount) => {
-    return `RD$ ${parseFloat(amount).toLocaleString('es-ES', {
+  const formatCurrency = (amount) =>
+    `RD$ ${parseFloat(amount).toLocaleString('es-ES', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     })}`;
-  };
 
   return (
     <View style={styles.container}>
@@ -230,32 +218,47 @@ const FinanceScreen = ({ navigation }) => {
       </Appbar.Header>
 
       <ScrollView style={styles.scrollView}>
-        {/* Resumen General */}
+
+        {/* ── Resumen Financiero (diseño mejorado) ─────────────── */}
         <Card style={styles.summaryCard}>
           <Card.Content>
             <Text variant="titleLarge" style={styles.summaryTitle}>
               Resumen Financiero
             </Text>
-            
-            <View style={styles.summaryGrid}>
-              <View style={styles.summaryItem}>
-                <Text variant="headlineMedium" style={styles.summaryNumber}>
+
+            {/* Fila superior: contadores pequeños */}
+            <View style={styles.summaryCountersRow}>
+              <View style={styles.summaryCounter}>
+                <Text variant="headlineMedium" style={styles.counterNumber}>
                   {semesterCount}
                 </Text>
-                <Text variant="bodyMedium">Cuatrimestres</Text>
+                <Text variant="bodySmall" style={styles.counterLabel}>
+                  Cuatrimestres
+                </Text>
               </View>
-              <View style={styles.summaryItem}>
-                <Text variant="headlineMedium" style={styles.summaryNumber}>
+
+              <View style={styles.counterSeparator} />
+
+              <View style={styles.summaryCounter}>
+                <Text variant="headlineMedium" style={styles.counterNumber}>
                   {payments.length}
                 </Text>
-                <Text variant="bodyMedium">Pagos</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text variant="headlineMedium" style={styles.summaryNumber}>
-                  {formatCurrency(totalPaid)}
+                <Text variant="bodySmall" style={styles.counterLabel}>
+                  Pagos registrados
                 </Text>
-                <Text variant="bodyMedium">Total Pagado</Text>
               </View>
+            </View>
+
+            <Divider style={styles.summaryDivider} />
+
+            {/* Fila inferior: total destacado */}
+            <View style={styles.summaryTotalBox}>
+              <Text variant="bodyMedium" style={styles.totalBoxLabel}>
+                Total Pagado
+              </Text>
+              <Text variant="headlineSmall" style={styles.totalBoxAmount}>
+                {formatCurrency(totalPaid)}
+              </Text>
             </View>
           </Card.Content>
         </Card>
@@ -267,7 +270,7 @@ const FinanceScreen = ({ navigation }) => {
               <Text variant="titleMedium" style={styles.sectionTitle}>
                 Total por Cuatrimestre
               </Text>
-              
+
               <DataTable>
                 <DataTable.Header>
                   <DataTable.Title>Cuatrimestre</DataTable.Title>
@@ -279,17 +282,13 @@ const FinanceScreen = ({ navigation }) => {
                   .map(([semester, amount]) => (
                     <DataTable.Row key={semester}>
                       <DataTable.Cell>Cuatrimestre {semester}</DataTable.Cell>
-                      <DataTable.Cell numeric>
-                        {formatCurrency(amount)}
-                      </DataTable.Cell>
+                      <DataTable.Cell numeric>{formatCurrency(amount)}</DataTable.Cell>
                     </DataTable.Row>
                   ))}
 
                 <DataTable.Row style={styles.totalRow}>
                   <DataTable.Cell>
-                    <Text variant="titleSmall" style={styles.totalText}>
-                      Total General
-                    </Text>
+                    <Text variant="titleSmall" style={styles.totalText}>Total General</Text>
                   </DataTable.Cell>
                   <DataTable.Cell numeric>
                     <Text variant="titleSmall" style={styles.totalText}>
@@ -302,7 +301,7 @@ const FinanceScreen = ({ navigation }) => {
           </Card>
         )}
 
-        {/* Lista de Pagos */}
+        {/* Historial de Pagos */}
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.sectionHeader}>
@@ -358,13 +357,9 @@ const FinanceScreen = ({ navigation }) => {
                   title={`Cuatrimestre ${payment.semester}`}
                   description={payment.description || 'Pago de matrícula'}
                   left={props => (
-                    <List.Icon 
-                      {...props} 
-                      icon="cash" 
-                      color={MD3Colors.primary70}
-                    />
+                    <List.Icon {...props} icon="cash" color={MD3Colors.primary70} />
                   )}
-                  right={props => (
+                  right={() => (
                     <View style={styles.paymentActions}>
                       <Text variant="bodyLarge" style={styles.paymentAmount}>
                         {formatCurrency(payment.amount)}
@@ -392,18 +387,16 @@ const FinanceScreen = ({ navigation }) => {
                   )}
                   style={[
                     styles.listItem,
-                    index === payments.length - 1 && styles.lastListItem
+                    index === payments.length - 1 && styles.lastListItem,
                   ]}
                 />
               ))
             )}
           </Card.Content>
         </Card>
-
-        
       </ScrollView>
 
-      {/* Modal para agregar/editar pago */}
+      {/* Modal agregar/editar pago */}
       <Portal>
         <Modal
           visible={modalVisible}
@@ -417,36 +410,33 @@ const FinanceScreen = ({ navigation }) => {
           <TextInput
             label="Cuatrimestre *"
             value={formData.semester}
-            onChangeText={(text) => setFormData({ ...formData, semester: text })}
+            onChangeText={(t) => setFormData({ ...formData, semester: t })}
             keyboardType="numeric"
             mode="outlined"
             style={styles.input}
             placeholder="Ej: 5"
           />
-
           <TextInput
             label="Monto (RD$) *"
             value={formData.amount}
-            onChangeText={(text) => setFormData({ ...formData, amount: text })}
+            onChangeText={(t) => setFormData({ ...formData, amount: t })}
             keyboardType="numeric"
             mode="outlined"
             style={styles.input}
             placeholder="Ej: 15250.00"
           />
-
           <TextInput
             label="Fecha *"
             value={formData.date}
-            onChangeText={(text) => setFormData({ ...formData, date: text })}
+            onChangeText={(t) => setFormData({ ...formData, date: t })}
             mode="outlined"
             style={styles.input}
             placeholder="YYYY-MM-DD"
           />
-
           <TextInput
             label="Descripción (opcional)"
             value={formData.description}
-            onChangeText={(text) => setFormData({ ...formData, description: text })}
+            onChangeText={(t) => setFormData({ ...formData, description: t })}
             mode="outlined"
             style={styles.input}
             multiline
@@ -485,26 +475,69 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+
+  // ── Resumen Financiero ──────────────────────────────────────
   summaryCard: {
     marginBottom: 16,
-    backgroundColor: '#e8f5e8',
+    backgroundColor: '#E8F5E9',
   },
   summaryTitle: {
     textAlign: 'center',
     marginBottom: 16,
     fontWeight: 'bold',
+    color: '#1B5E20',
   },
-  summaryGrid: {
+  summaryCountersRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  summaryItem: {
+    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 4,
   },
-  summaryNumber: {
+  summaryCounter: {
+    alignItems: 'center',
+    flex: 1,
+    paddingVertical: 8,
+  },
+  counterNumber: {
     fontWeight: 'bold',
-    color: MD3Colors.primary40,
+    color: '#1565C0',
+    lineHeight: 40,
   },
+  counterLabel: {
+    color: '#555',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  counterSeparator: {
+    width: 1,
+    height: 48,
+    backgroundColor: '#C8E6C9',
+    marginHorizontal: 8,
+  },
+  summaryDivider: {
+    marginVertical: 14,
+    backgroundColor: '#C8E6C9',
+  },
+  summaryTotalBox: {
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: '#A5D6A7',
+  },
+  totalBoxLabel: {
+    color: '#555',
+    marginBottom: 6,
+    letterSpacing: 0.5,
+  },
+  totalBoxAmount: {
+    fontWeight: 'bold',
+    color: '#2E7D32',
+  },
+
+  // ── General ─────────────────────────────────────────────────
   card: {
     marginBottom: 16,
   },
@@ -564,17 +597,6 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 4,
-  },
-  infoCard: {
-    marginBottom: 16,
-    backgroundColor: '#fff3e0',
-  },
-  infoTitle: {
-    marginBottom: 8,
-    fontWeight: 'bold',
-  },
-  infoText: {
-    lineHeight: 20,
   },
   modal: {
     backgroundColor: 'white',

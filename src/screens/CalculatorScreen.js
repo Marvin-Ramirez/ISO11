@@ -12,8 +12,6 @@ import {
   Button,
   TextInput,
   Divider,
-  List,
-  Chip,
   MD3Colors,
   Modal,
   Portal,
@@ -21,7 +19,6 @@ import {
 } from 'react-native-paper';
 
 const CalculatorScreen = ({ navigation }) => {
-  // Estado para los campos predeterminados
   const [fields, setFields] = useState([
     {
       id: 'credits',
@@ -60,6 +57,7 @@ const CalculatorScreen = ({ navigation }) => {
       amount: '955',
       enabled: true,
       isDefault: true,
+      labCount: '1',   
     },
   ]);
 
@@ -67,38 +65,37 @@ const CalculatorScreen = ({ navigation }) => {
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldAmount, setNewFieldAmount] = useState('');
 
-  // Calcular totales
+  // ── Calcular totales ──────────────────────────────────────────
   const calculateTotals = () => {
     let subtotal = 0;
     let creditAmount = 0;
     let discountAmount = 0;
-    let discountPercentage = 0;
 
-    // Encontrar los valores de créditos y descuento
     const creditsField = fields.find(f => f.id === 'credits');
     const discountField = fields.find(f => f.id === 'discount');
-    
+
     if (creditsField && creditsField.enabled) {
-      const creditsCount = parseFloat(creditsField.creditsCount || '0');
-      const creditPrice = parseFloat(creditsField.amount || '0');
-      creditAmount = creditsCount * creditPrice;
+      const count = parseFloat(creditsField.creditsCount || '0');
+      const price = parseFloat(creditsField.amount || '0');
+      creditAmount = count * price;
       subtotal += creditAmount;
     }
 
     if (discountField && discountField.enabled && creditsField?.hasDiscount) {
-      discountPercentage = parseFloat(discountField.amount || '0');
-      discountAmount = creditAmount * (discountPercentage / 100);
+      const pct = parseFloat(discountField.amount || '0');
+      discountAmount = creditAmount * (pct / 100);
     }
 
-    // Sumar otros campos habilitados
+    // Sumar todos los demás campos habilitados (incluido lab con su cantidad)
     const otherFieldsTotal = fields
-      .filter(field => 
-        field.enabled && 
-        field.id !== 'credits' && 
-        field.id !== 'discount' &&
-        !(field.id === 'credits' && field.hasDiscount) // No duplicar créditos con descuento
-      )
-      .reduce((sum, field) => sum + parseFloat(field.amount || '0'), 0);
+      .filter(f => f.enabled && f.id !== 'credits' && f.id !== 'discount')
+      .reduce((sum, f) => {
+        if (f.id === 'lab') {
+          const qty = parseFloat(f.labCount || '1');
+          return sum + qty * parseFloat(f.amount || '0');
+        }
+        return sum + parseFloat(f.amount || '0');
+      }, 0);
 
     const finalTotal = subtotal - discountAmount + otherFieldsTotal;
 
@@ -112,40 +109,38 @@ const CalculatorScreen = ({ navigation }) => {
     };
   };
 
-  const { subtotal, discountAmount, finalTotal, creditsCount, creditPrice, discountPercentage } = calculateTotals();
+  const {
+    subtotal,
+    discountAmount,
+    finalTotal,
+    creditsCount,
+    creditPrice,
+    discountPercentage,
+  } = calculateTotals();
 
-  // Actualizar un campo
+  // ── Helpers ───────────────────────────────────────────────────
   const updateField = (id, updates) => {
-    setFields(prev => prev.map(field => 
-      field.id === id ? { ...field, ...updates } : field
-    ));
+    setFields(prev => prev.map(f => (f.id === id ? { ...f, ...updates } : f)));
   };
 
-  // Alternar habilitación de campo
   const toggleField = (id) => {
-    setFields(prev => prev.map(field => 
-      field.id === id ? { ...field, enabled: !field.enabled } : field
-    ));
+    setFields(prev => prev.map(f => (f.id === id ? { ...f, enabled: !f.enabled } : f)));
   };
 
-  // Eliminar campo (solo si no es predeterminado)
   const deleteField = (id) => {
     const field = fields.find(f => f.id === id);
     if (field?.isDefault) {
-      Alert.alert('No se puede eliminar', 'Este campo es predeterminado y no puede ser eliminado.');
+      Alert.alert('No se puede eliminar', 'Este campo es predeterminado y no puede eliminarse.');
       return;
     }
-
-    setFields(prev => prev.filter(field => field.id !== id));
+    setFields(prev => prev.filter(f => f.id !== id));
   };
 
-  // Agregar nuevo campo
   const addNewField = () => {
     if (!newFieldName.trim() || !newFieldAmount.trim()) {
       Alert.alert('Error', 'Por favor ingresa un nombre y monto válidos.');
       return;
     }
-
     const newField = {
       id: Date.now().toString(),
       name: newFieldName.trim(),
@@ -153,20 +148,18 @@ const CalculatorScreen = ({ navigation }) => {
       enabled: true,
       isDefault: false,
     };
-
     setFields(prev => [...prev, newField]);
     setNewFieldName('');
     setNewFieldAmount('');
     setModalVisible(false);
   };
 
-  // Restablecer campos predeterminados
   const resetFields = () => {
     setFields([
       {
         id: 'credits',
         name: 'Créditos',
-        amount: '2050',
+        amount: '2195',
         enabled: true,
         isDefault: true,
         creditsCount: '0',
@@ -200,11 +193,12 @@ const CalculatorScreen = ({ navigation }) => {
         amount: '955',
         enabled: true,
         isDefault: true,
+        labCount: '1',
       },
     ]);
   };
 
-  // Renderizar campo de créditos (especial)
+  // ── Render: campo Créditos ────────────────────────────────────
   const renderCreditsField = (field) => (
     <Card key={field.id} style={styles.fieldCard}>
       <Card.Content>
@@ -217,36 +211,23 @@ const CalculatorScreen = ({ navigation }) => {
               style={styles.toggleSwitch}
             />
           </View>
-          {!field.isDefault && (
-            <Button
-              mode="text"
-              icon="delete"
-              textColor={MD3Colors.error50}
-              onPress={() => deleteField(field.id)}
-              compact
-            >
-              Eliminar
-            </Button>
-          )}
         </View>
 
         <View style={styles.creditsContainer}>
           <TextInput
             label="Cantidad de Créditos"
             value={field.creditsCount}
-            onChangeText={(value) => updateField(field.id, { creditsCount: value })}
+            onChangeText={(v) => updateField(field.id, { creditsCount: v })}
             keyboardType="numeric"
             mode="outlined"
             style={styles.creditsInput}
             disabled={!field.enabled}
           />
-          
           <Text variant="bodyLarge" style={styles.timesText}>×</Text>
-          
           <TextInput
             label="Precio por Crédito (RD$)"
             value={field.amount}
-            onChangeText={(value) => updateField(field.id, { amount: value })}
+            onChangeText={(v) => updateField(field.id, { amount: v })}
             keyboardType="numeric"
             mode="outlined"
             style={styles.creditsInput}
@@ -258,14 +239,15 @@ const CalculatorScreen = ({ navigation }) => {
           <Text variant="bodyMedium">Aplicar descuento a créditos</Text>
           <Switch
             value={field.hasDiscount}
-            onValueChange={(value) => updateField(field.id, { hasDiscount: value })}
+            onValueChange={(v) => updateField(field.id, { hasDiscount: v })}
           />
         </View>
 
         {field.enabled && (
           <View style={styles.fieldCalculation}>
             <Text variant="bodyMedium">
-              {field.creditsCount || '0'} créditos × RD$ {field.amount} = RD$ {(
+              {field.creditsCount || '0'} créditos × RD$ {field.amount} = RD${' '}
+              {(
                 parseFloat(field.creditsCount || '0') * parseFloat(field.amount || '0')
               ).toFixed(2)}
             </Text>
@@ -275,7 +257,7 @@ const CalculatorScreen = ({ navigation }) => {
     </Card>
   );
 
-  // Renderizar campo de descuento (especial)
+  // ── Render: campo Descuento ───────────────────────────────────
   const renderDiscountField = (field) => (
     <Card key={field.id} style={styles.fieldCard}>
       <Card.Content>
@@ -293,7 +275,7 @@ const CalculatorScreen = ({ navigation }) => {
         <TextInput
           label="Porcentaje de Descuento (%)"
           value={field.amount}
-          onChangeText={(value) => updateField(field.id, { amount: value })}
+          onChangeText={(v) => updateField(field.id, { amount: v })}
           keyboardType="numeric"
           mode="outlined"
           style={styles.input}
@@ -308,7 +290,8 @@ const CalculatorScreen = ({ navigation }) => {
                 <Text>
                   {' '}de RD$ {(
                     parseFloat(creditsCount || '0') * parseFloat(creditPrice || '0')
-                  ).toFixed(2)} = RD$ {discountAmount.toFixed(2)}
+                  ).toFixed(2)}{' '}
+                  = RD$ {discountAmount.toFixed(2)}
                 </Text>
               )}
             </Text>
@@ -318,7 +301,59 @@ const CalculatorScreen = ({ navigation }) => {
     </Card>
   );
 
-  // Renderizar campo normal
+  // ── Render: campo Laboratorio Informática ─────────────────────
+  const renderLabField = (field) => (
+    <Card key={field.id} style={styles.fieldCard}>
+      <Card.Content>
+        <View style={styles.fieldHeader}>
+          <View style={styles.fieldTitle}>
+            <Text variant="titleMedium">{field.name}</Text>
+            <Switch
+              value={field.enabled}
+              onValueChange={() => toggleField(field.id)}
+              style={styles.toggleSwitch}
+            />
+          </View>
+        </View>
+
+        {/* Cantidad × Monto — igual que Créditos */}
+        <View style={styles.creditsContainer}>
+          <TextInput
+            label="Cantidad"
+            value={field.labCount}
+            onChangeText={(v) => updateField(field.id, { labCount: v })}
+            keyboardType="numeric"
+            mode="outlined"
+            style={styles.creditsInput}
+            disabled={!field.enabled}
+          />
+          <Text variant="bodyLarge" style={styles.timesText}>×</Text>
+          <TextInput
+            label="Monto por Lab (RD$)"
+            value={field.amount}
+            onChangeText={(v) => updateField(field.id, { amount: v })}
+            keyboardType="numeric"
+            mode="outlined"
+            style={styles.creditsInput}
+            disabled={!field.enabled}
+          />
+        </View>
+
+        {field.enabled && (
+          <View style={styles.fieldCalculation}>
+            <Text variant="bodyMedium">
+              {field.labCount || '1'} × RD$ {field.amount} = RD${' '}
+              {(
+                parseFloat(field.labCount || '1') * parseFloat(field.amount || '0')
+              ).toFixed(2)}
+            </Text>
+          </View>
+        )}
+      </Card.Content>
+    </Card>
+  );
+
+  // ── Render: campo normal ──────────────────────────────────────
   const renderNormalField = (field) => (
     <Card key={field.id} style={styles.fieldCard}>
       <Card.Content>
@@ -345,9 +380,9 @@ const CalculatorScreen = ({ navigation }) => {
         </View>
 
         <TextInput
-          label={`Monto (RD$)`}
+          label="Monto (RD$)"
           value={field.amount}
-          onChangeText={(value) => updateField(field.id, { amount: value })}
+          onChangeText={(v) => updateField(field.id, { amount: v })}
           keyboardType="numeric"
           mode="outlined"
           style={styles.input}
@@ -363,6 +398,7 @@ const CalculatorScreen = ({ navigation }) => {
     </Card>
   );
 
+  // ── JSX principal ─────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <Appbar.Header>
@@ -371,13 +407,13 @@ const CalculatorScreen = ({ navigation }) => {
       </Appbar.Header>
 
       <ScrollView style={styles.scrollView}>
-        {/* Resumen de Cálculos */}
+        {/* Resumen */}
         <Card style={styles.summaryCard}>
           <Card.Content>
             <Text variant="titleLarge" style={styles.summaryTitle}>
               Resumen de Matrícula
             </Text>
-            
+
             <View style={styles.summaryRow}>
               <Text variant="bodyMedium">Subtotal:</Text>
               <Text variant="bodyMedium">RD$ {subtotal.toFixed(2)}</Text>
@@ -403,7 +439,7 @@ const CalculatorScreen = ({ navigation }) => {
           </Card.Content>
         </Card>
 
-        {/* Campos de Cálculo */}
+        {/* Conceptos */}
         <Card style={styles.fieldsCard}>
           <Card.Content>
             <View style={styles.fieldsHeader}>
@@ -431,19 +467,16 @@ const CalculatorScreen = ({ navigation }) => {
             <Divider style={styles.divider} />
 
             {fields.map(field => {
-              if (field.id === 'credits') {
-                return renderCreditsField(field);
-              } else if (field.id === 'discount') {
-                return renderDiscountField(field);
-              } else {
-                return renderNormalField(field);
-              }
+              if (field.id === 'credits') return renderCreditsField(field);
+              if (field.id === 'discount') return renderDiscountField(field);
+              if (field.id === 'lab') return renderLabField(field);
+              return renderNormalField(field);
             })}
           </Card.Content>
         </Card>
       </ScrollView>
 
-      {/* Modal para agregar nuevo campo */}
+      {/* Modal agregar concepto */}
       <Portal>
         <Modal
           visible={modalVisible}

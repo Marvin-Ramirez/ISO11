@@ -307,12 +307,12 @@ const HomeScreen = ({ navigation }) => {
               </Button>
               <Button 
                 mode="outlined" 
-                icon="pencil"
-                onPress={() => navigation.navigate('EditPensum')}
+                icon="calendar-clock"
+                onPress={() => navigation.navigate('Schedule')}
                 style={styles.actionButton}
                 contentStyle={styles.actionButtonContent}
               >
-                Editar
+                Horario
               </Button>
             </View>
           </Card.Content>
