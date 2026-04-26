@@ -1,193 +1,136 @@
 import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import {
-  Appbar,
-  Card,
-  Text,
-  Button,
-  Checkbox,
-  Chip,
-  Divider,
-  List,
-  TextInput,
-  Modal,
-  Portal,
-  MD3Colors,
+  Appbar, Card, Text, Button, TextInput,
+  Divider, List, Chip, Checkbox, MD3Colors,
+  Modal, Portal,
 } from 'react-native-paper';
 import { useApp } from '../context/AppContext';
+import { useAppTheme } from '../context/ThemeContext';
 
 const PlanningScreen = ({ navigation, route }) => {
-  const { subjects, getSubjectsBySemester, savePlan, savedPlans } = useApp();
-  const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const { subjects, savedPlans, savePlan } = useApp();
+  const { colors } = useAppTheme();
+
   const [availableSubjects, setAvailableSubjects] = useState([]);
-  const [totalCredits, setTotalCredits] = useState(0);
-  const [semesterFilter, setSemesterFilter] = useState('all');
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [planName, setPlanName] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('all');
   const [saveModalVisible, setSaveModalVisible] = useState(false);
+  const [planName, setPlanName] = useState('');
 
-  // Cargar materias disponibles al iniciar
-  useEffect(() => {
-    loadAvailableSubjects();
-  }, [subjects, semesterFilter, searchQuery]);
+  const totalCredits = selectedSubjects.reduce((sum, s) => sum + s.credits, 0);
 
-  // Calcular créditos totales cuando cambian las materias seleccionadas
   useEffect(() => {
-    const credits = selectedSubjects.reduce((sum, subject) => sum + subject.credits, 0);
-    setTotalCredits(credits);
-  }, [selectedSubjects]);
-
-  // Generar nombre de plan por defecto
-  useEffect(() => {
-    if (!planName) {
-      const date = new Date();
-      const defaultName = `Plan ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-      setPlanName(defaultName);
+    if (route.params?.recommendedSubjects) {
+      setSelectedSubjects(route.params.recommendedSubjects);
     }
-  }, []);
+  }, [route.params]);
 
-  const loadAvailableSubjects = () => {
-    let available = subjects.filter(subject => {
-      // Filtrar por cuatrimestre
-      if (semesterFilter !== 'all' && subject.semester !== parseInt(semesterFilter)) {
-        return false;
-      }
+  useEffect(() => {
+    filterSubjects();
+  }, [subjects, searchQuery, semesterFilter]);
 
-      // Filtrar por búsqueda
-      if (searchQuery && 
-          !subject.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !subject.code.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
-      }
+  const filterSubjects = () => {
+    let filtered = subjects.filter(s => !s.completed);
 
-      // Verificar prerrequisitos
-      const hasPrerequisites = subject.prerequisites.length > 0;
-      const prerequisitesCompleted = hasPrerequisites 
-        ? subject.prerequisites.every(prereqCode => {
-            const prereqSubject = subjects.find(s => s.code === prereqCode);
-            return prereqSubject && prereqSubject.completed;
-          })
-        : true;
+    if (searchQuery) {
+      filtered = filtered.filter(s =>
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.code.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
 
-      return prerequisitesCompleted && !subject.completed;
-    });
+    if (semesterFilter === 'recommended') {
+      filtered = filtered.filter(s =>
+        s.prerequisites.every(code => {
+          const pre = subjects.find(x => x.code === code);
+          return pre && pre.completed;
+        })
+      );
+    } else if (semesterFilter !== 'all') {
+      filtered = filtered.filter(s => s.semester === parseInt(semesterFilter));
+    }
 
-    setAvailableSubjects(available);
+    setAvailableSubjects(filtered);
   };
 
   const toggleSubjectSelection = (subject) => {
     setSelectedSubjects(prev => {
       const isSelected = prev.find(s => s.id === subject.id);
-      if (isSelected) {
-        return prev.filter(s => s.id !== subject.id);
-      } else {
-        return [...prev, subject];
-      }
+      return isSelected ? prev.filter(s => s.id !== subject.id) : [...prev, subject];
     });
   };
 
-  const isSubjectSelected = (subjectId) => {
-    return selectedSubjects.some(s => s.id === subjectId);
-  };
+  const isSubjectSelected = (subjectId) => selectedSubjects.some(s => s.id === subjectId);
 
-  const clearSelection = () => {
-    setSelectedSubjects([]);
-  };
+  const clearSelection = () => setSelectedSubjects([]);
 
   const handleSavePlan = async () => {
     if (selectedSubjects.length === 0) {
-      Alert.alert('Error', 'Selecciona al menos una materia para guardar la planificación.');
+      Alert.alert('Error', 'Selecciona al menos una materia.');
       return;
     }
-
     if (!planName.trim()) {
       Alert.alert('Error', 'Por favor ingresa un nombre para el plan.');
       return;
     }
-
-    const planData = {
+    const result = await savePlan({
       name: planName.trim(),
       subjects: selectedSubjects,
-      totalCredits: totalCredits,
+      totalCredits,
       subjectCount: selectedSubjects.length,
-    };
-
-    const result = await savePlan(planData);
-    
+    });
     if (result.success) {
       Alert.alert(
         '✅ Plan Guardado',
-        `"${planData.name}" se ha guardado exitosamente.\n\n${selectedSubjects.length} materias - ${totalCredits} créditos`,
+        `"${planName.trim()}" guardado.\n\n${selectedSubjects.length} materias - ${totalCredits} créditos`,
         [
-          { 
-            text: 'Continuar Planificando', 
-            style: 'cancel' 
-          },
-          { 
-            text: 'Ver Planes Guardados', 
-            onPress: () => navigation.navigate('SavedPlans')
-          }
+          { text: 'Continuar Planificando', style: 'cancel' },
+          { text: 'Ver Planes Guardados', onPress: () => navigation.navigate('SavedPlans') },
         ]
       );
       setSaveModalVisible(false);
-      // Opcional: limpiar selección después de guardar
-      // clearSelection();
     } else {
       Alert.alert('Error', result.error || 'No se pudo guardar el plan.');
     }
   };
 
   const getRecommendedSubjects = () => {
-    // Encontrar el próximo cuatrimestre basado en materias completadas
     const completedSemesters = [...new Set(subjects.filter(s => s.completed).map(s => s.semester))];
     const nextSemester = completedSemesters.length > 0 ? Math.max(...completedSemesters) + 1 : 1;
-    
-    return availableSubjects.filter(subject => subject.semester === nextSemester);
+    return availableSubjects.filter(s => s.semester === nextSemester);
   };
 
-  const loadRecommended = () => {
-    const recommended = getRecommendedSubjects();
-    setSelectedSubjects(recommended);
-  };
+  const loadRecommended = () => setSelectedSubjects(getRecommendedSubjects());
 
   const openSaveModal = () => {
-    if (selectedSubjects.length === 0) {
-      Alert.alert('Error', 'Selecciona al menos una materia para guardar.');
-      return;
-    }
+    if (selectedSubjects.length === 0) { Alert.alert('Error', 'Selecciona al menos una materia.'); return; }
     setSaveModalVisible(true);
   };
+
+  const styles = makeStyles(colors);
 
   const renderSubjectItem = (subject) => (
     <List.Item
       key={subject.id}
       title={subject.name}
+      titleStyle={styles.itemTitle}
       description={`${subject.code} - ${subject.credits} créditos - Cuatrimestre ${subject.semester}`}
-      left={props => (
+      descriptionStyle={styles.itemDesc}
+      left={() => (
         <Checkbox
           status={isSubjectSelected(subject.id) ? 'checked' : 'unchecked'}
           onPress={() => toggleSubjectSelection(subject)}
         />
       )}
-      right={props => (
+      right={() => (
         <View style={styles.subjectBadges}>
-          <Chip mode="outlined" compact style={styles.creditChip}>
-            {subject.credits} cr
-          </Chip>
-          <Chip mode="flat" compact style={styles.semesterChip}>
-            C{subject.semester}
-          </Chip>
+          <Chip mode="outlined" compact style={styles.creditChip}>{subject.credits} cr</Chip>
+          <Chip mode="flat" compact style={styles.semesterChip}>C{subject.semester}</Chip>
         </View>
       )}
-      style={[
-        styles.listItem,
-        isSubjectSelected(subject.id) && styles.selectedListItem
-      ]}
+      style={[styles.listItem, isSubjectSelected(subject.id) && styles.selectedListItem]}
     />
   );
 
@@ -196,53 +139,39 @@ const PlanningScreen = ({ navigation, route }) => {
       <Appbar.Header>
         <Appbar.BackAction onPress={() => navigation.goBack()} />
         <Appbar.Content title="Planificación" />
-        <Appbar.Action 
-          icon="folder" 
-          onPress={() => navigation.navigate('SavedPlans')} 
-        />
+        <Appbar.Action icon="folder" onPress={() => navigation.navigate('SavedPlans')} />
       </Appbar.Header>
 
       <ScrollView style={styles.scrollView}>
-        {/* Resumen de la Planificación */}
+        {/* Resumen */}
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.summary}>
-              <View style={styles.summaryItem}>
-                <Text variant="titleLarge" style={styles.summaryNumber}>
-                  {selectedSubjects.length}
-                </Text>
-                <Text variant="bodyMedium">Materias</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text variant="titleLarge" style={styles.summaryNumber}>
-                  {totalCredits}
-                </Text>
-                <Text variant="bodyMedium">Créditos</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text variant="titleLarge" style={styles.summaryNumber}>
-                  {savedPlans.length}
-                </Text>
-                <Text variant="bodyMedium">Planes</Text>
-              </View>
+              {[
+                { value: selectedSubjects.length, label: 'Materias' },
+                { value: totalCredits, label: 'Créditos' },
+                { value: savedPlans.length, label: 'Planes' },
+              ].map((item, i) => (
+                <View key={i} style={styles.summaryItem}>
+                  <Text variant="titleLarge" style={styles.summaryNumber}>{item.value}</Text>
+                  <Text variant="bodyMedium" style={styles.bodyText}>{item.label}</Text>
+                </View>
+              ))}
             </View>
-
             <View style={styles.planActions}>
-              <Button 
-                mode="outlined" 
+              <Button
+                mode="outlined" icon="delete-sweep"
                 onPress={clearSelection}
                 disabled={selectedSubjects.length === 0}
                 style={styles.planButton}
-                icon="delete-sweep"
               >
                 Limpiar
               </Button>
-              <Button 
-                mode="contained" 
+              <Button
+                mode="contained" icon="content-save"
                 onPress={openSaveModal}
                 disabled={selectedSubjects.length === 0}
                 style={styles.planButton}
-                icon="content-save"
               >
                 Guardar Plan
               </Button>
@@ -250,13 +179,10 @@ const PlanningScreen = ({ navigation, route }) => {
           </Card.Content>
         </Card>
 
-        {/* Controles de Filtro */}
+        {/* Filtros */}
         <Card style={styles.card}>
           <Card.Content>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Filtros
-            </Text>
-            
+            <Text variant="titleMedium" style={styles.sectionTitle}>Filtros</Text>
             <TextInput
               placeholder="Buscar materias..."
               value={searchQuery}
@@ -265,58 +191,37 @@ const PlanningScreen = ({ navigation, route }) => {
               left={<TextInput.Icon icon="magnify" />}
               style={styles.searchInput}
             />
-
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-              <Chip
-                selected={semesterFilter === 'all'}
-                onPress={() => setSemesterFilter('all')}
-                style={styles.filterChip}
-              >
-                Todos
-              </Chip>
-              <Chip
-                selected={semesterFilter === 'recommended'}
-                onPress={() => setSemesterFilter('recommended')}
-                style={styles.filterChip}
-                icon="lightbulb"
-              >
-                Recomendadas
-              </Chip>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(sem => (
+              {[
+                { key: 'all', label: 'Todos' },
+                { key: 'recommended', label: 'Recomendadas', icon: 'lightbulb' },
+                ...[1,2,3,4,5,6,7,8,9,10,11,12].map(n => ({ key: String(n), label: `C${n}` })),
+              ].map(item => (
                 <Chip
-                  key={sem}
-                  selected={semesterFilter === sem.toString()}
-                  onPress={() => setSemesterFilter(sem.toString())}
+                  key={item.key}
+                  selected={semesterFilter === item.key}
+                  onPress={() => setSemesterFilter(item.key)}
                   style={styles.filterChip}
+                  icon={item.icon}
+                  showSelectedOverlay
                 >
-                  C{sem}
+                  {item.label}
                 </Chip>
               ))}
             </ScrollView>
-
-            <Button 
-              mode="outlined" 
-              icon="lightbulb"
-              onPress={loadRecommended}
-              style={styles.recommendButton}
-            >
+            <Button mode="outlined" icon="lightbulb" onPress={loadRecommended} style={styles.recommendButton}>
               Cargar Recomendadas
             </Button>
           </Card.Content>
         </Card>
 
-        {/* Lista de Materias Disponibles */}
+        {/* Materias disponibles */}
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.sectionHeader}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Materias Disponibles
-              </Text>
-              <Chip mode="outlined">
-                {availableSubjects.length} disponibles
-              </Chip>
+              <Text variant="titleMedium" style={styles.sectionTitle}>Materias Disponibles</Text>
+              <Chip mode="outlined">{availableSubjects.length} disponibles</Chip>
             </View>
-
             {availableSubjects.length === 0 ? (
               <Text variant="bodyMedium" style={styles.emptyText}>
                 No hay materias disponibles con los filtros actuales.
@@ -327,58 +232,47 @@ const PlanningScreen = ({ navigation, route }) => {
           </Card.Content>
         </Card>
 
-        {/* Materias Seleccionadas */}
+        {/* Seleccionadas */}
         {selectedSubjects.length > 0 && (
           <Card style={styles.card}>
             <Card.Content>
               <Text variant="titleMedium" style={styles.sectionTitle}>
                 Materias Seleccionadas ({selectedSubjects.length})
               </Text>
-              
               {selectedSubjects.map(subject => (
                 <List.Item
                   key={subject.id}
                   title={subject.name}
+                  titleStyle={styles.itemTitle}
                   description={`${subject.code} - ${subject.credits} créditos`}
+                  descriptionStyle={styles.itemDesc}
                   left={props => <List.Icon {...props} icon="check" color={MD3Colors.primary70} />}
-                  right={props => (
-                    <Button
-                      mode="text"
-                      compact
-                      onPress={() => toggleSubjectSelection(subject)}
-                      textColor="red"
-                    >
+                  right={() => (
+                    <Button mode="text" compact onPress={() => toggleSubjectSelection(subject)} textColor={MD3Colors.error50}>
                       Quitar
                     </Button>
                   )}
                   style={styles.selectedItem}
                 />
               ))}
-
               <Divider style={styles.divider} />
-              
               <View style={styles.totalSection}>
-                <Text variant="titleLarge">Total de Créditos:</Text>
-                <Text variant="titleLarge" style={styles.totalCredits}>
-                  {totalCredits}
-                </Text>
+                <Text variant="titleLarge" style={styles.bodyText}>Total de Créditos:</Text>
+                <Text variant="titleLarge" style={styles.totalCredits}>{totalCredits}</Text>
               </View>
             </Card.Content>
           </Card>
         )}
       </ScrollView>
 
-      {/* Modal para Guardar Plan */}
+      {/* Modal guardar */}
       <Portal>
         <Modal
           visible={saveModalVisible}
           onDismiss={() => setSaveModalVisible(false)}
           contentContainerStyle={styles.modal}
         >
-          <Text variant="titleLarge" style={styles.modalTitle}>
-            Guardar Planificación
-          </Text>
-
+          <Text variant="titleLarge" style={styles.modalTitle}>Guardar Planificación</Text>
           <TextInput
             label="Nombre del plan"
             value={planName}
@@ -387,32 +281,17 @@ const PlanningScreen = ({ navigation, route }) => {
             style={styles.modalInput}
             placeholder="Ej: Plan Cuatrimestre 5"
           />
-
           <View style={styles.modalSummary}>
-            <Text variant="bodyMedium">
+            <Text variant="bodyMedium" style={styles.bodyText}>
               <Text style={styles.bold}>{selectedSubjects.length} materias</Text> seleccionadas
             </Text>
-            <Text variant="bodyMedium">
+            <Text variant="bodyMedium" style={styles.bodyText}>
               Total: <Text style={styles.bold}>{totalCredits} créditos</Text>
             </Text>
           </View>
-
           <View style={styles.modalActions}>
-            <Button
-              mode="outlined"
-              onPress={() => setSaveModalVisible(false)}
-              style={styles.modalButton}
-            >
-              Cancelar
-            </Button>
-            <Button
-              mode="contained"
-              onPress={handleSavePlan}
-              style={styles.modalButton}
-              disabled={!planName.trim()}
-            >
-              Guardar
-            </Button>
+            <Button mode="outlined" onPress={() => setSaveModalVisible(false)} style={styles.modalButton}>Cancelar</Button>
+            <Button mode="contained" onPress={handleSavePlan} style={styles.modalButton} disabled={!planName.trim()}>Guardar</Button>
           </View>
         </Modal>
       </Portal>
@@ -420,132 +299,41 @@ const PlanningScreen = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  scrollView: {
-    flex: 1,
-    padding: 16,
-  },
-  card: {
-    marginBottom: 16,
-  },
-  summary: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 16,
-  },
-  summaryItem: {
-    alignItems: 'center',
-  },
-  summaryNumber: {
-    fontWeight: 'bold',
-    color: MD3Colors.primary40,
-  },
-  planActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  planButton: {
-    flex: 1,
-  },
-  sectionTitle: {
-    marginBottom: 12,
-    fontWeight: 'bold',
-  },
-  searchInput: {
-    marginBottom: 12,
-  },
-  filterScroll: {
-    marginBottom: 12,
-  },
-  filterChip: {
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  recommendButton: {
-    marginTop: 8,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  listItem: {
-    paddingLeft: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  selectedListItem: {
-    backgroundColor: '#e3f2fd',
-  },
-  subjectBadges: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  creditChip: {
-    backgroundColor: '#e8f5e8',
-  },
-  semesterChip: {
-    backgroundColor: '#fff3e0',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#666',
-    fontStyle: 'italic',
-    paddingVertical: 20,
-  },
-  selectedItem: {
-    paddingLeft: 0,
-    backgroundColor: '#f8fdff',
-    marginBottom: 4,
-    borderRadius: 4,
-  },
-  divider: {
-    marginVertical: 16,
-  },
-  totalSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  totalCredits: {
-    fontWeight: 'bold',
-    color: MD3Colors.primary70,
-  },
-  modal: {
-    backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 8,
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalInput: {
-    marginBottom: 16,
-  },
-  modalSummary: {
-    backgroundColor: '#f5f5f5',
-    padding: 12,
-    borderRadius: 4,
-    marginBottom: 20,
-  },
-  bold: {
-    fontWeight: 'bold',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  modalButton: {
-    minWidth: 100,
-  },
+const makeStyles = (colors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollView: { flex: 1, padding: 16 },
+  card: { marginBottom: 16, backgroundColor: colors.surface },
+  summary: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16 },
+  summaryItem: { alignItems: 'center' },
+  summaryNumber: { fontWeight: 'bold', color: MD3Colors.primary40 },
+  bodyText: { color: colors.text },
+  planActions: { flexDirection: 'row', gap: 8 },
+  planButton: { flex: 1 },
+  sectionTitle: { marginBottom: 12, fontWeight: 'bold', color: colors.text },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  searchInput: { marginBottom: 12 },
+  filterScroll: { marginBottom: 12 },
+  filterChip: { marginRight: 8, marginBottom: 4 },
+  recommendButton: { marginTop: 8 },
+  listItem: { paddingLeft: 0, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  selectedListItem: { backgroundColor: colors.selectedItemBg },
+  itemTitle: { color: colors.text },
+  itemDesc: { color: colors.textSecondary },
+  subjectBadges: { flexDirection: 'row', gap: 4 },
+  creditChip: { backgroundColor: colors.greenBg },
+  semesterChip: { backgroundColor: colors.orangeBg },
+  emptyText: { textAlign: 'center', color: colors.textTertiary, fontStyle: 'italic', paddingVertical: 20 },
+  selectedItem: { paddingLeft: 0, backgroundColor: colors.selectedItemBg, marginBottom: 4, borderRadius: 4 },
+  divider: { marginVertical: 16, backgroundColor: colors.divider },
+  totalSection: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalCredits: { fontWeight: 'bold', color: MD3Colors.primary70 },
+  modal: { backgroundColor: colors.surface, margin: 20, padding: 20, borderRadius: 8 },
+  modalTitle: { marginBottom: 20, textAlign: 'center', color: colors.text },
+  modalInput: { marginBottom: 16 },
+  modalSummary: { backgroundColor: colors.subtleBg, padding: 12, borderRadius: 4, marginBottom: 20 },
+  bold: { fontWeight: 'bold', color: colors.text },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  modalButton: { minWidth: 100 },
 });
 
 export default PlanningScreen;

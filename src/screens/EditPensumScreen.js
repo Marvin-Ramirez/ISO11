@@ -18,6 +18,7 @@ import {
   Divider,
 } from 'react-native-paper';
 import { useApp } from '../context/AppContext';
+import { useAppTheme } from '../context/ThemeContext';
 
 const EditPensumScreen = ({ navigation }) => {
   const { 
@@ -28,6 +29,7 @@ const EditPensumScreen = ({ navigation }) => {
     resetToDefault, 
     clearAllSubjects 
   } = useApp(); 
+  const { colors } = useAppTheme();
   const [filteredSubjects, setFilteredSubjects] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('all');
@@ -162,6 +164,8 @@ const EditPensumScreen = ({ navigation }) => {
     await toggleSubjectCompletion(subject.id);
   };
 
+  const styles = makeStyles(colors);
+
   const renderSubjectCard = (subject) => (
     <Card key={subject.id} style={styles.subjectCard}>
       <Card.Content>
@@ -263,7 +267,7 @@ const EditPensumScreen = ({ navigation }) => {
           onPress={() => openEditModal()}
           style={styles.actionButton}
         >
-          Agregar Materia
+          Agregar
         </Button>
         <Button
           mode="outlined"
@@ -280,7 +284,7 @@ const EditPensumScreen = ({ navigation }) => {
           onPress={handleClearAll}
           style={styles.actionButton}
         >
-          Eliminar Todas
+          Eliminar
         </Button>
       </View>
 
@@ -375,112 +379,30 @@ const EditPensumScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  controls: {
-    padding: 16,
-    backgroundColor: 'white',
-  },
-  searchInput: {
-    marginBottom: 12,
-  },
-  semesterFilter: {
-    marginBottom: 8,
-  },
-  filterChip: {
-    marginRight: 8,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: 'white',
-    gap: 8,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  divider: {
-    marginVertical: 8,
-  },
-  subjectsList: {
-    flex: 1,
-    padding: 8,
-  },
-  subjectCard: {
-    marginBottom: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  subjectInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  subjectCode: {
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  completionSwitch: {
-    marginLeft: 8,
-  },
-  credits: {
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  subjectName: {
-    marginBottom: 8,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  prereqChip: {
-    backgroundColor: '#e3f2fd',
-  },
-  cardActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  emptyCard: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#666',
-  },
-  modal: {
-    backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 8,
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    marginBottom: 12,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
-    gap: 8,
-  },
-  modalButton: {
-    minWidth: 100,
-  },
+const makeStyles = (colors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  controls: { padding: 16, backgroundColor: colors.surface },
+  searchInput: { marginBottom: 12 },
+  semesterFilter: { marginBottom: 8 },
+  filterChip: { marginRight: 8 },
+  actionButtons: { flexDirection: 'row', padding: 12, backgroundColor: colors.surface, gap: 8 },
+  actionButton: { flex: 1 },
+  subjectsList: { flex: 1, padding: 8 },
+  subjectCard: { marginBottom: 8, backgroundColor: colors.surface },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  subjectInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  subjectCode: { fontWeight: 'bold', flex: 1, color: colors.text },
+  completionSwitch: { marginLeft: 8 },
+  credits: { fontWeight: 'bold', color: colors.textSecondary },
+  subjectName: { marginBottom: 8, color: colors.text },
+  cardFooter: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
+  prereqChip: { backgroundColor: colors.blueBg },
+  cardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  modal: { backgroundColor: colors.surface, margin: 20, padding: 20, borderRadius: 8 },
+  modalTitle: { marginBottom: 20, textAlign: 'center', color: colors.text },
+  input: { marginBottom: 12 },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, gap: 8 },
+  modalButton: { minWidth: 100 },
 });
 
 export default EditPensumScreen;

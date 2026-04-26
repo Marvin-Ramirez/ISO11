@@ -1,214 +1,110 @@
 import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Alert,
-} from 'react-native';
-import {
-  Appbar,
-  Card,
-  Text,
-  Button,
-  TextInput,
-  Divider,
-  List,
-  MD3Colors,
-  Modal,
-  Portal,
-  DataTable,
+  Appbar, Card, Text, Button, TextInput,
+  Divider, List, MD3Colors, Modal, Portal, DataTable,
 } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAppTheme } from '../context/ThemeContext';
 
 const FinanceScreen = ({ navigation }) => {
+  const { colors } = useAppTheme();
   const [payments, setPayments] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
-  const [formData, setFormData] = useState({
-    semester: '',
-    amount: '',
-    date: '',
-    description: '',
-  });
+  const [formData, setFormData] = useState({ semester: '', amount: '', date: '', description: '' });
 
-  const PAYMENTS_STORAGE_KEY = '@pensum_payments';
+  const PAYMENTS_KEY = '@pensum_payments';
 
-  useEffect(() => {
-    loadPayments();
-  }, []);
+  useEffect(() => { loadPayments(); }, []);
 
   const loadPayments = async () => {
     try {
-      const jsonValue = await AsyncStorage.getItem(PAYMENTS_STORAGE_KEY);
-      if (jsonValue !== null) {
-        setPayments(JSON.parse(jsonValue));
-      }
-    } catch (error) {
-      console.error('Error loading payments:', error);
-    }
+      const json = await AsyncStorage.getItem(PAYMENTS_KEY);
+      if (json) setPayments(JSON.parse(json));
+    } catch (e) { console.error(e); }
   };
 
-  const savePayments = async (newPayments) => {
+  const savePayments = async (list) => {
     try {
-      const jsonValue = JSON.stringify(newPayments);
-      await AsyncStorage.setItem(PAYMENTS_STORAGE_KEY, jsonValue);
-      setPayments(newPayments);
+      await AsyncStorage.setItem(PAYMENTS_KEY, JSON.stringify(list));
+      setPayments(list);
       return true;
-    } catch (error) {
-      console.error('Error saving payments:', error);
-      return false;
-    }
+    } catch (e) { return false; }
   };
 
-  const calculateTotals = () => {
-    const totalPaid = payments.reduce(
-      (sum, p) => sum + parseFloat(p.amount || 0),
-      0
-    );
-
+  const calcTotals = () => {
+    const totalPaid = payments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
     const bySemester = payments.reduce((acc, p) => {
-      const s = p.semester;
-      if (!acc[s]) acc[s] = 0;
-      acc[s] += parseFloat(p.amount || 0);
+      acc[p.semester] = (acc[p.semester] || 0) + parseFloat(p.amount || 0);
       return acc;
     }, {});
-
-    return {
-      totalPaid,
-      bySemester,
-      semesterCount: Object.keys(bySemester).length,
-    };
+    return { totalPaid, bySemester, semesterCount: Object.keys(bySemester).length };
   };
 
-  const { totalPaid, bySemester, semesterCount } = calculateTotals();
+  const { totalPaid, bySemester, semesterCount } = calcTotals();
 
-  const openPaymentModal = (payment = null) => {
+  const openModal = (payment = null) => {
     if (payment) {
       setEditingPayment(payment);
-      setFormData({
-        semester: payment.semester.toString(),
-        amount: payment.amount.toString(),
-        date: payment.date,
-        description: payment.description || '',
-      });
+      setFormData({ semester: String(payment.semester), amount: String(payment.amount), date: payment.date, description: payment.description || '' });
     } else {
       setEditingPayment(null);
-      setFormData({
-        semester: '',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-        description: '',
-      });
+      setFormData({ semester: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' });
     }
     setModalVisible(true);
   };
 
-  const handleSavePayment = async () => {
+  const handleSave = async () => {
     if (!formData.semester.trim() || !formData.amount.trim() || !formData.date.trim()) {
-      Alert.alert('Error', 'Por favor completa los campos obligatorios (Cuatrimestre, Monto y Fecha).');
-      return;
+      Alert.alert('Error', 'Completa los campos obligatorios.'); return;
     }
-
     const amount = parseFloat(formData.amount);
-    if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'Por favor ingresa un monto válido.');
-      return;
-    }
-
     const semester = parseInt(formData.semester);
-    if (isNaN(semester) || semester < 1 || semester > 12) {
-      Alert.alert('Error', 'El cuatrimestre debe ser un número entre 1 y 12.');
-      return;
-    }
+    if (isNaN(amount) || amount <= 0) { Alert.alert('Error', 'Monto inválido.'); return; }
+    if (isNaN(semester) || semester < 1 || semester > 12) { Alert.alert('Error', 'Cuatrimestre debe ser 1–12.'); return; }
 
-    const paymentData = {
-      id: editingPayment ? editingPayment.id : Date.now().toString(),
-      semester,
-      amount,
-      date: formData.date,
+    const p = {
+      id: editingPayment?.id ?? Date.now().toString(),
+      semester, amount, date: formData.date,
       description: formData.description.trim(),
-      createdAt: editingPayment ? editingPayment.createdAt : new Date().toISOString(),
+      createdAt: editingPayment?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    let newPayments;
-    if (editingPayment) {
-      newPayments = payments.map(p => p.id === editingPayment.id ? paymentData : p);
-    } else {
-      newPayments = [...payments, paymentData];
-    }
-
-    newPayments.sort((a, b) => {
-      if (a.semester !== b.semester) return a.semester - b.semester;
-      return new Date(b.date) - new Date(a.date);
-    });
-
-    const success = await savePayments(newPayments);
-    if (success) {
+    let list = editingPayment ? payments.map(x => x.id === p.id ? p : x) : [...payments, p];
+    list.sort((a, b) => a.semester !== b.semester ? a.semester - b.semester : new Date(b.date) - new Date(a.date));
+    const ok = await savePayments(list);
+    if (ok) {
       setModalVisible(false);
-      Alert.alert(
-        '✅ Pago Guardado',
-        editingPayment ? 'Pago actualizado exitosamente.' : 'Pago registrado exitosamente.'
-      );
+      Alert.alert('✅ Guardado', editingPayment ? 'Pago actualizado.' : 'Pago registrado.');
     }
   };
 
-  const handleDeletePayment = (payment) => {
-    Alert.alert(
-      'Eliminar Pago',
-      `¿Estás seguro de que quieres eliminar el pago del cuatrimestre ${payment.semester}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            const newPayments = payments.filter(p => p.id !== payment.id);
-            const success = await savePayments(newPayments);
-            if (success) {
-              Alert.alert('✅ Pago Eliminado', 'El pago ha sido eliminado exitosamente.');
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = (p) => {
+    Alert.alert('Eliminar Pago', `¿Eliminar pago del cuatrimestre ${p.semester}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        if (await savePayments(payments.filter(x => x.id !== p.id)))
+          Alert.alert('✅ Eliminado');
+      }},
+    ]);
   };
 
   const handleClearAll = () => {
-    if (payments.length === 0) return;
-    Alert.alert(
-      'Eliminar Todos los Pagos',
-      `¿Estás seguro de que quieres eliminar todos los pagos (${payments.length} registros)?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar Todos',
-          style: 'destructive',
-          onPress: async () => {
-            const success = await savePayments([]);
-            if (success) {
-              Alert.alert('✅ Pagos Eliminados', 'Todos los pagos han sido eliminados.');
-            }
-          },
-        },
-      ]
-    );
+    if (!payments.length) return;
+    Alert.alert('Eliminar Todos', `¿Eliminar ${payments.length} registros?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        if (await savePayments([])) Alert.alert('✅ Eliminados');
+      }},
+    ]);
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
+  const fmtDate = (d) => new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const fmtCur = (a) => `RD$ ${parseFloat(a).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const formatCurrency = (amount) =>
-    `RD$ ${parseFloat(amount).toLocaleString('es-ES', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+  const styles = makeStyles(colors);
 
   return (
     <View style={styles.container}>
@@ -218,247 +114,107 @@ const FinanceScreen = ({ navigation }) => {
       </Appbar.Header>
 
       <ScrollView style={styles.scrollView}>
-
-        {/* ── Resumen Financiero (diseño mejorado) ─────────────── */}
+        {/* Resumen Financiero */}
         <Card style={styles.summaryCard}>
           <Card.Content>
-            <Text variant="titleLarge" style={styles.summaryTitle}>
-              Resumen Financiero
-            </Text>
-
-            {/* Fila superior: contadores pequeños */}
-            <View style={styles.summaryCountersRow}>
-              <View style={styles.summaryCounter}>
-                <Text variant="headlineMedium" style={styles.counterNumber}>
-                  {semesterCount}
-                </Text>
-                <Text variant="bodySmall" style={styles.counterLabel}>
-                  Cuatrimestres
-                </Text>
+            <Text variant="titleLarge" style={styles.summaryTitle}>Resumen Financiero</Text>
+            <View style={styles.countersRow}>
+              <View style={styles.counter}>
+                <Text variant="headlineMedium" style={styles.counterNum}>{semesterCount}</Text>
+                <Text variant="bodySmall" style={styles.counterLabel}>Cuatrimestres</Text>
               </View>
-
-              <View style={styles.counterSeparator} />
-
-              <View style={styles.summaryCounter}>
-                <Text variant="headlineMedium" style={styles.counterNumber}>
-                  {payments.length}
-                </Text>
-                <Text variant="bodySmall" style={styles.counterLabel}>
-                  Pagos registrados
-                </Text>
+              <View style={styles.counterSep} />
+              <View style={styles.counter}>
+                <Text variant="headlineMedium" style={styles.counterNum}>{payments.length}</Text>
+                <Text variant="bodySmall" style={styles.counterLabel}>Pagos registrados</Text>
               </View>
             </View>
-
             <Divider style={styles.summaryDivider} />
-
-            {/* Fila inferior: total destacado */}
-            <View style={styles.summaryTotalBox}>
-              <Text variant="bodyMedium" style={styles.totalBoxLabel}>
-                Total Pagado
-              </Text>
-              <Text variant="headlineSmall" style={styles.totalBoxAmount}>
-                {formatCurrency(totalPaid)}
-              </Text>
+            <View style={styles.totalBox}>
+              <Text variant="bodyMedium" style={styles.totalBoxLabel}>Total Pagado</Text>
+              <Text variant="headlineSmall" style={styles.totalBoxAmt}>{fmtCur(totalPaid)}</Text>
             </View>
           </Card.Content>
         </Card>
 
-        {/* Resumen por Cuatrimestre */}
+        {/* Por cuatrimestre */}
         {Object.keys(bySemester).length > 0 && (
           <Card style={styles.card}>
             <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Total por Cuatrimestre
-              </Text>
-
+              <Text variant="titleMedium" style={styles.sectionTitle}>Total por Cuatrimestre</Text>
               <DataTable>
                 <DataTable.Header>
-                  <DataTable.Title>Cuatrimestre</DataTable.Title>
-                  <DataTable.Title numeric>Total Pagado</DataTable.Title>
+                  <DataTable.Title><Text style={styles.bodyText}>Cuatrimestre</Text></DataTable.Title>
+                  <DataTable.Title numeric><Text style={styles.bodyText}>Total Pagado</Text></DataTable.Title>
                 </DataTable.Header>
-
-                {Object.entries(bySemester)
-                  .sort(([a], [b]) => parseInt(a) - parseInt(b))
-                  .map(([semester, amount]) => (
-                    <DataTable.Row key={semester}>
-                      <DataTable.Cell>Cuatrimestre {semester}</DataTable.Cell>
-                      <DataTable.Cell numeric>{formatCurrency(amount)}</DataTable.Cell>
-                    </DataTable.Row>
-                  ))}
-
+                {Object.entries(bySemester).sort(([a],[b]) => +a - +b).map(([sem, amt]) => (
+                  <DataTable.Row key={sem}>
+                    <DataTable.Cell><Text style={styles.bodyText}>Cuatrimestre {sem}</Text></DataTable.Cell>
+                    <DataTable.Cell numeric><Text style={styles.bodyText}>{fmtCur(amt)}</Text></DataTable.Cell>
+                  </DataTable.Row>
+                ))}
                 <DataTable.Row style={styles.totalRow}>
-                  <DataTable.Cell>
-                    <Text variant="titleSmall" style={styles.totalText}>Total General</Text>
-                  </DataTable.Cell>
-                  <DataTable.Cell numeric>
-                    <Text variant="titleSmall" style={styles.totalText}>
-                      {formatCurrency(totalPaid)}
-                    </Text>
-                  </DataTable.Cell>
+                  <DataTable.Cell><Text variant="titleSmall" style={styles.totalText}>Total General</Text></DataTable.Cell>
+                  <DataTable.Cell numeric><Text variant="titleSmall" style={styles.totalText}>{fmtCur(totalPaid)}</Text></DataTable.Cell>
                 </DataTable.Row>
               </DataTable>
             </Card.Content>
           </Card>
         )}
 
-        {/* Historial de Pagos */}
+        {/* Historial */}
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.sectionHeader}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Historial de Pagos ({payments.length})
-              </Text>
+              <Text variant="titleMedium" style={styles.sectionTitle}>Historial ({payments.length})</Text>
               <View style={styles.headerActions}>
-                <Button
-                  mode="outlined"
-                  icon="plus"
-                  onPress={() => openPaymentModal()}
-                  compact
-                >
-                  Agregar
-                </Button>
+                <Button mode="outlined" icon="plus" onPress={() => openModal()} compact>Agregar</Button>
                 {payments.length > 0 && (
-                  <Button
-                    mode="outlined"
-                    icon="delete"
-                    textColor={MD3Colors.error50}
-                    onPress={handleClearAll}
-                    compact
-                  >
-                    Limpiar
-                  </Button>
+                  <Button mode="outlined" icon="delete" textColor={MD3Colors.error50} onPress={handleClearAll} compact>Limpiar</Button>
                 )}
               </View>
             </View>
-
             <Divider style={styles.divider} />
-
             {payments.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text variant="bodyLarge" style={styles.emptyText}>
-                  No hay pagos registrados
-                </Text>
-                <Text variant="bodyMedium" style={styles.emptySubtext}>
-                  Presiona "Agregar" para registrar tu primer pago
-                </Text>
-                <Button
-                  mode="contained"
-                  icon="plus"
-                  onPress={() => openPaymentModal()}
-                  style={styles.addFirstButton}
-                >
-                  Registrar Primer Pago
-                </Button>
+                <Text variant="bodyLarge" style={styles.emptyText}>No hay pagos registrados</Text>
+                <Text variant="bodyMedium" style={styles.emptySubtext}>Presiona "Agregar" para el primer pago</Text>
+                <Button mode="contained" icon="plus" onPress={() => openModal()} style={{ marginTop: 8 }}>Registrar Primer Pago</Button>
               </View>
-            ) : (
-              payments.map((payment, index) => (
-                <List.Item
-                  key={payment.id}
-                  title={`Cuatrimestre ${payment.semester}`}
-                  description={payment.description || 'Pago de matrícula'}
-                  left={props => (
-                    <List.Icon {...props} icon="cash" color={MD3Colors.primary70} />
-                  )}
-                  right={() => (
-                    <View style={styles.paymentActions}>
-                      <Text variant="bodyLarge" style={styles.paymentAmount}>
-                        {formatCurrency(payment.amount)}
-                      </Text>
-                      <View style={styles.actionButtons}>
-                        <Button
-                          mode="text"
-                          icon="pencil"
-                          onPress={() => openPaymentModal(payment)}
-                          compact
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          mode="text"
-                          icon="delete"
-                          textColor={MD3Colors.error50}
-                          onPress={() => handleDeletePayment(payment)}
-                          compact
-                        >
-                          Eliminar
-                        </Button>
-                      </View>
+            ) : payments.map((p, i) => (
+              <List.Item
+                key={p.id}
+                title={`Cuatrimestre ${p.semester}`}
+                titleStyle={styles.bodyText}
+                description={p.description || 'Pago de matrícula'}
+                descriptionStyle={styles.descText}
+                left={props => <List.Icon {...props} icon="cash" color={MD3Colors.primary70} />}
+                right={() => (
+                  <View style={styles.paymentActions}>
+                    <Text variant="bodyLarge" style={styles.paymentAmount}>{fmtCur(p.amount)}</Text>
+                    <View style={styles.actionBtns}>
+                      <Button mode="text" icon="pencil" onPress={() => openModal(p)} compact>Editar</Button>
+                      <Button mode="text" icon="delete" textColor={MD3Colors.error50} onPress={() => handleDelete(p)} compact>Eliminar</Button>
                     </View>
-                  )}
-                  style={[
-                    styles.listItem,
-                    index === payments.length - 1 && styles.lastListItem,
-                  ]}
-                />
-              ))
-            )}
+                  </View>
+                )}
+                style={[styles.listItem, i === payments.length - 1 && styles.lastListItem]}
+              />
+            ))}
           </Card.Content>
         </Card>
       </ScrollView>
 
-      {/* Modal agregar/editar pago */}
       <Portal>
-        <Modal
-          visible={modalVisible}
-          onDismiss={() => setModalVisible(false)}
-          contentContainerStyle={styles.modal}
-        >
-          <Text variant="titleLarge" style={styles.modalTitle}>
-            {editingPayment ? 'Editar Pago' : 'Registrar Pago'}
-          </Text>
-
-          <TextInput
-            label="Cuatrimestre *"
-            value={formData.semester}
-            onChangeText={(t) => setFormData({ ...formData, semester: t })}
-            keyboardType="numeric"
-            mode="outlined"
-            style={styles.input}
-            placeholder="Ej: 5"
-          />
-          <TextInput
-            label="Monto (RD$) *"
-            value={formData.amount}
-            onChangeText={(t) => setFormData({ ...formData, amount: t })}
-            keyboardType="numeric"
-            mode="outlined"
-            style={styles.input}
-            placeholder="Ej: 15250.00"
-          />
-          <TextInput
-            label="Fecha *"
-            value={formData.date}
-            onChangeText={(t) => setFormData({ ...formData, date: t })}
-            mode="outlined"
-            style={styles.input}
-            placeholder="YYYY-MM-DD"
-          />
-          <TextInput
-            label="Descripción (opcional)"
-            value={formData.description}
-            onChangeText={(t) => setFormData({ ...formData, description: t })}
-            mode="outlined"
-            style={styles.input}
-            multiline
-            numberOfLines={2}
-            placeholder="Ej: Pago completo de matrícula cuatrimestre 5"
-          />
-
+        <Modal visible={modalVisible} onDismiss={() => setModalVisible(false)} contentContainerStyle={styles.modal}>
+          <Text variant="titleLarge" style={styles.modalTitle}>{editingPayment ? 'Editar Pago' : 'Registrar Pago'}</Text>
+          <TextInput label="Cuatrimestre *" value={formData.semester} onChangeText={t => setFormData(f => ({...f, semester: t}))} keyboardType="numeric" mode="outlined" style={styles.input} placeholder="Ej: 5" />
+          <TextInput label="Monto (RD$) *" value={formData.amount} onChangeText={t => setFormData(f => ({...f, amount: t}))} keyboardType="numeric" mode="outlined" style={styles.input} placeholder="15250.00" />
+          <TextInput label="Fecha *" value={formData.date} onChangeText={t => setFormData(f => ({...f, date: t}))} mode="outlined" style={styles.input} placeholder="YYYY-MM-DD" />
+          <TextInput label="Descripción (opcional)" value={formData.description} onChangeText={t => setFormData(f => ({...f, description: t}))} mode="outlined" style={styles.input} multiline numberOfLines={2} />
           <View style={styles.modalActions}>
-            <Button
-              mode="outlined"
-              onPress={() => setModalVisible(false)}
-              style={styles.modalButton}
-            >
-              Cancelar
-            </Button>
-            <Button
-              mode="contained"
-              onPress={handleSavePayment}
-              style={styles.modalButton}
-            >
-              {editingPayment ? 'Actualizar' : 'Guardar'}
-            </Button>
+            <Button mode="outlined" onPress={() => setModalVisible(false)} style={styles.modalBtn}>Cancelar</Button>
+            <Button mode="contained" onPress={handleSave} style={styles.modalBtn}>{editingPayment ? 'Actualizar' : 'Guardar'}</Button>
           </View>
         </Modal>
       </Portal>
@@ -466,160 +222,42 @@ const FinanceScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  scrollView: {
-    flex: 1,
-    padding: 16,
-  },
-
-  // ── Resumen Financiero ──────────────────────────────────────
-  summaryCard: {
-    marginBottom: 16,
-    backgroundColor: '#E8F5E9',
-  },
-  summaryTitle: {
-    textAlign: 'center',
-    marginBottom: 16,
-    fontWeight: 'bold',
-    color: '#1B5E20',
-  },
-  summaryCountersRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  summaryCounter: {
-    alignItems: 'center',
-    flex: 1,
-    paddingVertical: 8,
-  },
-  counterNumber: {
-    fontWeight: 'bold',
-    color: '#1565C0',
-    lineHeight: 40,
-  },
-  counterLabel: {
-    color: '#555',
-    marginTop: 2,
-    textAlign: 'center',
-  },
-  counterSeparator: {
-    width: 1,
-    height: 48,
-    backgroundColor: '#C8E6C9',
-    marginHorizontal: 8,
-  },
-  summaryDivider: {
-    marginVertical: 14,
-    backgroundColor: '#C8E6C9',
-  },
-  summaryTotalBox: {
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: '#A5D6A7',
-  },
-  totalBoxLabel: {
-    color: '#555',
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  totalBoxAmount: {
-    fontWeight: 'bold',
-    color: '#2E7D32',
-  },
-
-  // ── General ─────────────────────────────────────────────────
-  card: {
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    fontWeight: 'bold',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  divider: {
-    marginVertical: 12,
-  },
-  totalRow: {
-    backgroundColor: '#f0f0f0',
-  },
-  totalText: {
-    fontWeight: 'bold',
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    textAlign: 'center',
-    marginBottom: 8,
-    color: '#666',
-  },
-  emptySubtext: {
-    textAlign: 'center',
-    color: '#999',
-    marginBottom: 24,
-  },
-  addFirstButton: {
-    marginTop: 8,
-  },
-  listItem: {
-    paddingLeft: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  lastListItem: {
-    borderBottomWidth: 0,
-  },
-  paymentActions: {
-    alignItems: 'flex-end',
-  },
-  paymentAmount: {
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  modal: {
-    backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 8,
-  },
-  modalTitle: {
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    marginBottom: 12,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
-    gap: 8,
-  },
-  modalButton: {
-    minWidth: 100,
-  },
+const makeStyles = (colors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollView: { flex: 1, padding: 16 },
+  summaryCard: { marginBottom: 16, backgroundColor: colors.financeSummaryBg },
+  summaryTitle: { textAlign: 'center', marginBottom: 16, fontWeight: 'bold', color: colors.financeTitleColor },
+  countersRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
+  counter: { alignItems: 'center', flex: 1, paddingVertical: 8 },
+  counterNum: { fontWeight: 'bold', color: MD3Colors.primary40, lineHeight: 40 },
+  counterLabel: { color: colors.textSecondary, marginTop: 2, textAlign: 'center' },
+  counterSep: { width: 1, height: 48, backgroundColor: colors.counterSeparator, marginHorizontal: 8 },
+  summaryDivider: { marginVertical: 14, backgroundColor: colors.counterSeparator },
+  totalBox: { alignItems: 'center', backgroundColor: colors.surface, borderRadius: 10, paddingVertical: 14, paddingHorizontal: 20, borderWidth: 1, borderColor: colors.financeSummaryBorder },
+  totalBoxLabel: { color: colors.textSecondary, marginBottom: 6, letterSpacing: 0.5 },
+  totalBoxAmt: { fontWeight: 'bold', color: colors.financeSummaryTotal },
+  card: { marginBottom: 16, backgroundColor: colors.surface },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sectionTitle: { fontWeight: 'bold', color: colors.text },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  divider: { marginVertical: 12, backgroundColor: colors.divider },
+  totalRow: { backgroundColor: colors.subtleBg },
+  totalText: { fontWeight: 'bold', color: colors.text },
+  bodyText: { color: colors.text },
+  descText: { color: colors.textSecondary },
+  emptyState: { alignItems: 'center', padding: 32 },
+  emptyText: { textAlign: 'center', marginBottom: 8, color: colors.textSecondary },
+  emptySubtext: { textAlign: 'center', color: colors.textTertiary, marginBottom: 24 },
+  listItem: { paddingLeft: 0, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  lastListItem: { borderBottomWidth: 0 },
+  paymentActions: { alignItems: 'flex-end' },
+  paymentAmount: { fontWeight: 'bold', marginBottom: 4, color: colors.text },
+  actionBtns: { flexDirection: 'row', gap: 4 },
+  modal: { backgroundColor: colors.surface, margin: 20, padding: 20, borderRadius: 8 },
+  modalTitle: { marginBottom: 20, textAlign: 'center', color: colors.text },
+  input: { marginBottom: 12 },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, gap: 8 },
+  modalBtn: { minWidth: 100 },
 });
 
 export default FinanceScreen;

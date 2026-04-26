@@ -18,7 +18,7 @@
 
 ---
 
-## 🛠 Tecnologías utilizadas
+## Tecnologías utilizadas
 
 - **React Native** (con Expo) para el desarrollo multiplataforma (iOS y Android).
 - **AsyncStorage** para el almacenamiento local persistente de los datos del pensum.
@@ -29,7 +29,7 @@
 
 ---
 
-## 📸 Capturas de pantalla
+## Capturas de pantalla
 
 | Progreso General  | Lista de materias  | Herramientas |
 |-------------------|--------------------|-------------------|
@@ -41,4 +41,26 @@
 
 ### Opción 1: Descargar el APK (solo Android)
 
-Puedes descargar la última versión de la aplicación desde la sección [Releases](https://github.com/tu-usuario/ISO11/releases) de este repositorio. Busca el archivo `.apk` e instálalo en tu dispositivo Android (recuerda habilitar la instalación desde orígenes desconocidos).
+Puedes descargar la última versión de la aplicación desde la sección [Releases](https://github.com/marvin-ramirez/ISO11/releases) de este repositorio. Busca el archivo `.apk` e instálalo en tu dispositivo Android (recuerda habilitar la instalación desde orígenes desconocidos).
+
+### Opción 2: Ejecutar en entorno de desarrollo
+
+Si deseas explorar el código o ejecutar la app en tu propio entorno:
+
+1. Clona este repositorio:
+   ```bash
+   git clone https://github.com/marvin-ramirez/ISO11.git
+
+2. Accede a la carpeta del proyecto:
+   ```bash
+   cd ISO11
+
+3. Instala las dependencias:
+   ```bash
+   npm install
+
+4. Inicia el proyecto con Expo:
+   ```bash
+   expo start
+
+5. Escanea el código QR con la aplicación Expo Go en tu dispositivo iOS o Android.
